@@ -16,9 +16,11 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@crossmarkio/sdk": "^0.4.0",
     "@gemwallet/api": "^3.8.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "xumm-oauth2-pkce": "^2.8.7"
   },
   "devDependencies": {
     "@oxfmt/binding-darwin-arm64": "^0.42.0",
