@@ -26,6 +26,11 @@ describe("GemWallet adapter", () => {
   });
 
   it("connects and returns a normalized account", async () => {
+    isInstalled.mockResolvedValue({
+      result: {
+        isInstalled: true,
+      },
+    });
     getAddress.mockResolvedValue({
       result: {
         address: TEST_XRPL_ADDRESS,
@@ -61,11 +66,29 @@ describe("GemWallet adapter", () => {
   });
 
   it("normalizes connect failures", async () => {
+    isInstalled.mockResolvedValue({
+      result: {
+        isInstalled: true,
+      },
+    });
     getAddress.mockRejectedValue(new Error("Extension offline"));
 
     await expect(createGemWalletAdapter().connect()).rejects.toMatchObject({
       code: "connection_failed",
       message: "GemWallet connection failed.",
+    });
+  });
+
+  it("throws a not installed error when the extension is missing", async () => {
+    isInstalled.mockResolvedValue({
+      result: {
+        isInstalled: false,
+      },
+    });
+
+    await expect(createGemWalletAdapter().connect()).rejects.toMatchObject({
+      code: "not_installed",
+      message: "Install GemWallet before connecting.",
     });
   });
 });
