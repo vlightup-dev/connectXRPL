@@ -23,7 +23,7 @@ function createAdapter(id: WalletAdapter["id"], name: string): WalletAdapter {
 }
 
 describe("WalletPicker", () => {
-  it("renders configured wallets and calls connect for the selected wallet", async () => {
+  it("renders configured wallets and connects when a wallet tile is selected", async () => {
     const user = userEvent.setup();
     const onConnect = vi.fn();
 
@@ -45,11 +45,12 @@ describe("WalletPicker", () => {
     await waitFor(() => expect(screen.getByText(/installed/i)).toBeTruthy());
 
     await user.click(screen.getByRole("button", { name: /xaman/i }));
-    await user.click(screen.getByRole("button", { name: /connect wallet/i }));
 
-    expect(onConnect).toHaveBeenCalledWith({
-      address: "xaman-address",
-      network: "unknown",
-    });
+    await waitFor(() =>
+      expect(onConnect).toHaveBeenCalledWith({
+        address: "xaman-address",
+        network: "unknown",
+      }),
+    );
   });
 });
