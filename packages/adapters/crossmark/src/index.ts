@@ -2,6 +2,19 @@ import sdk from "@crossmarkio/sdk";
 import { createWalletConnectError } from "../../../core/src/errors";
 import type { WalletAdapter } from "../../../core/src/types";
 
+function getResponseHash(response: unknown): string | undefined {
+  if (
+    typeof response === "object" &&
+    response !== null &&
+    "hash" in response &&
+    typeof response.hash === "string"
+  ) {
+    return response.hash;
+  }
+
+  return undefined;
+}
+
 export function createCrossmarkAdapter(): WalletAdapter {
   return {
     id: "crossmark",
@@ -36,7 +49,7 @@ export function createCrossmarkAdapter(): WalletAdapter {
         const response = result?.response?.data?.resp;
 
         return {
-          hash: response?.hash,
+          hash: getResponseHash(response),
           result: response,
         };
       } catch (error) {
