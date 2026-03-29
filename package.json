@@ -1,24 +1,40 @@
 {
-  "name": "xrpl-wallet-connect",
+  "name": "@trustauthy/xrpl-wallet-connect",
   "version": "0.1.0",
-  "private": true,
+  "license": "MIT",
   "workspaces": [
     "packages/core",
     "packages/react",
     "packages/adapters/*"
   ],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./react": "./src/react.ts",
-    "./adapters": "./src/adapters.ts"
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./react": {
+      "types": "./dist/src/react.d.ts",
+      "default": "./dist/src/react.js"
+    },
+    "./adapters": {
+      "types": "./dist/src/adapters.d.ts",
+      "default": "./dist/src/adapters.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "check": "vp check",
     "test": "vp test",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
     "@crossmarkio/sdk": "^0.4.0",
