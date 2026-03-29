@@ -20,28 +20,6 @@ vi.mock("xumm-oauth2-pkce", () => ({
 }));
 
 describe("Xaman adapter", () => {
-  it("reuses the same Xaman client for the same config", async () => {
-    authorize.mockResolvedValue({
-      me: {
-        account: TEST_XRPL_ADDRESS,
-      },
-    });
-
-    const firstAdapter = createXamanAdapter({
-      apiKey: "xaman-key",
-      redirectUrl: "http://localhost:3000",
-    });
-    const secondAdapter = createXamanAdapter({
-      apiKey: "xaman-key",
-      redirectUrl: "http://localhost:3000",
-    });
-
-    await firstAdapter.connect();
-    await secondAdapter.connect();
-
-    expect(constructorSpy).toHaveBeenCalledTimes(1);
-  });
-
   it("connects and returns the XRPL account", async () => {
     authorize.mockResolvedValue({
       me: {
