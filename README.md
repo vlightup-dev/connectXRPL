@@ -1,6 +1,29 @@
 # XRPL Wallet Connect
 
-React and TypeScript wallet connect components and adapters for XRPL wallets.
+`@trustauthy/xrpl-wallet-connect` is a React and TypeScript wallet-connect package for XRPL wallets.
+
+It ships:
+
+- XRPL wallet adapter types and shared error helpers
+- direct adapters for `GemWallet`, `Xaman`, and `Crossmark`
+- optional React provider and hook primitives
+
+Consumers should render their own wallet selection UI and call adapters directly.
+
+## Install
+
+```bash
+npm install @trustauthy/xrpl-wallet-connect
+```
+
+## Usage
+
+```ts
+import {
+  createGemWalletAdapter,
+  createXamanAdapter,
+} from "@trustauthy/xrpl-wallet-connect/adapters";
+```
 
 ## Commands
 
