@@ -2,6 +2,8 @@
 
 `@trustauthy/xrpl-wallet-connect` is a React and TypeScript wallet-connect package for XRPL wallets.
 
+This package is open source software.
+
 It ships:
 
 - XRPL wallet adapter types and shared error helpers
@@ -30,3 +32,7 @@ import {
 - `npm run check`
 - `npm run test`
 - `npm run build`
+
+## License
+
+MIT. See [LICENSE](./LICENSE).
