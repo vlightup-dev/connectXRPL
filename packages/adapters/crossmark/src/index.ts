@@ -19,7 +19,7 @@ export function createCrossmarkAdapter(): WalletAdapter {
   return {
     id: "crossmark",
     name: "Crossmark",
-    capabilities: ["connect", "submitTransaction"],
+    capabilities: ["connect", "signTransaction", "submitTransaction"],
     async isInstalled() {
       return typeof window !== "undefined";
     },
@@ -41,6 +41,28 @@ export function createCrossmarkAdapter(): WalletAdapter {
         const code = message.includes("not installed") ? "not_installed" : "connection_failed";
 
         throw createWalletConnectError(code, "Crossmark connection failed.", error);
+      }
+    },
+    async signTransaction({ transaction }) {
+      try {
+        const result = await sdk.methods.signAndWait(transaction);
+        const txBlob = result?.response?.data?.txBlob;
+
+        if (!txBlob) {
+          throw new Error("Crossmark did not return a signed transaction blob.");
+        }
+
+        return {
+          signedTransaction: {
+            txBlob,
+          },
+        };
+      } catch (error) {
+        throw createWalletConnectError(
+          "signing_failed",
+          "Crossmark transaction signing failed.",
+          error,
+        );
       }
     },
     async submitTransaction({ transaction }) {
