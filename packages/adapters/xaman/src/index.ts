@@ -13,13 +13,27 @@ type XamanAdapterOptions = {
   redirectUrl?: string;
 };
 
+const xamanClientCache = new Map<string, XummPkce>();
+
 export function createXamanAdapter(options: XamanAdapterOptions = {}): WalletAdapter {
+  function getClientCacheKey() {
+    return `${options.apiKey ?? ""}::${options.redirectUrl ?? ""}`;
+  }
+
   function createClient() {
-    return new XummPkce(options.apiKey!, {
+    const cacheKey = getClientCacheKey();
+    const cachedClient = xamanClientCache.get(cacheKey);
+    if (cachedClient) {
+      return cachedClient;
+    }
+
+    const client = new XummPkce(options.apiKey!, {
       redirectUrl: options.redirectUrl!,
       rememberJwt: true,
       storage: window.localStorage,
     });
+    xamanClientCache.set(cacheKey, client);
+    return client;
   }
 
   async function getExistingSession() {
