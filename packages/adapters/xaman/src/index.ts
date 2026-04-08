@@ -17,6 +17,12 @@ type XamanPayloadResult = {
   };
 };
 
+type XamanCreatedPayload = {
+  next?: {
+    always?: string;
+  };
+};
+
 type XamanPayloadRequest = {
   txjson: Record<string, unknown>;
   options: {
@@ -39,9 +45,62 @@ type XamanResolvedPayload = {
 };
 
 const clientCache = new Map<string, Xumm>();
+let preparedSignRequestWindow: Window | null = null;
 
 function getCacheKey({ apiKey, redirectUrl }: XamanAdapterOptions) {
   return `${apiKey ?? ""}::${redirectUrl ?? ""}`;
+}
+
+function safeWindowOpen(url = "") {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return window.open(url, "_blank", "popup=yes,width=460,height=760");
+  } catch {
+    return null;
+  }
+}
+
+function openPreparedWindow(signUrl: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const popup =
+    preparedSignRequestWindow && !preparedSignRequestWindow.closed
+      ? preparedSignRequestWindow
+      : safeWindowOpen();
+
+  preparedSignRequestWindow = null;
+
+  if (!popup) {
+    return;
+  }
+
+  popup.location.href = signUrl;
+  popup.focus?.();
+}
+
+export function prepareXamanSignRequestWindow() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  preparedSignRequestWindow = safeWindowOpen();
+}
+
+export function clearPreparedXamanSignRequestWindow() {
+  if (
+    preparedSignRequestWindow &&
+    !preparedSignRequestWindow.closed &&
+    typeof preparedSignRequestWindow.close === "function"
+  ) {
+    preparedSignRequestWindow.close();
+  }
+
+  preparedSignRequestWindow = null;
 }
 
 function getClient(options: XamanAdapterOptions) {
@@ -215,6 +274,12 @@ export function createXamanAdapter(options: XamanAdapterOptions = {}): WalletAda
             return undefined;
           },
         );
+
+        const createdPayload = created as XamanCreatedPayload | undefined;
+        const signRequestUrl = createdPayload?.next?.always;
+        if (signRequestUrl) {
+          openPreparedWindow(signRequestUrl);
+        }
 
         const resolution = (await resolved) as XamanResolvedPayload | undefined;
 

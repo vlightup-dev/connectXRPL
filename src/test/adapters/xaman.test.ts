@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createXamanAdapter } from "@xaman/index";
+import {
+  clearPreparedXamanSignRequestWindow,
+  createXamanAdapter,
+  prepareXamanSignRequestWindow,
+} from "@xaman/index";
 import { TEST_XRPL_ADDRESS } from "../fixtures/xrpl";
 
 const {
@@ -72,8 +76,10 @@ function setMockSession(signedIn: boolean, account = TEST_XRPL_ADDRESS) {
 describe("Xaman adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(window, "open").mockReturnValue(null);
     resetMockState();
     setMockSession(false);
+    clearPreparedXamanSignRequestWindow();
   });
 
   it("connects and returns the XRPL account", async () => {
@@ -152,7 +158,11 @@ describe("Xaman adapter", () => {
   it("returns a signed transaction blob from the payload response", async () => {
     setMockSession(true);
     createAndSubscribe.mockResolvedValue({
-      created: "payload-1",
+      created: {
+        next: {
+          always: "https://xaman.app/sign/payload-1",
+        },
+      },
       resolved: Promise.resolve({
         data: {
           signed: true,
@@ -201,7 +211,61 @@ describe("Xaman adapter", () => {
       },
       expect.any(Function),
     );
-    expect(getPayload).toHaveBeenCalledWith("payload-1");
+    expect(getPayload).toHaveBeenCalledWith({
+      next: {
+        always: "https://xaman.app/sign/payload-1",
+      },
+    });
+  });
+
+  it("uses the prepared popup window for the Xaman sign request url", async () => {
+    setMockSession(true);
+
+    const popupWindow = {
+      closed: false,
+      focus: vi.fn(),
+      location: {
+        href: "",
+      },
+    };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(popupWindow as never);
+
+    prepareXamanSignRequestWindow();
+
+    createAndSubscribe.mockResolvedValue({
+      created: {
+        next: {
+          always: "https://xaman.app/sign/payload-2",
+        },
+      },
+      resolved: Promise.resolve({
+        data: {
+          signed: true,
+        },
+      }),
+    });
+    getPayload.mockResolvedValue({
+      response: {
+        hex: "ABC123",
+      },
+    });
+
+    const adapter = createXamanAdapter({
+      apiKey: "xaman-key",
+      redirectUrl: "http://localhost:3000/sign",
+    });
+
+    await adapter.signTransaction?.({
+      transaction: {
+        TransactionType: "Payment",
+        Destination: TEST_XRPL_ADDRESS,
+        Amount: "1000",
+      },
+    });
+
+    expect(openSpy).toHaveBeenCalledWith("", "_blank", "popup=yes,width=460,height=760");
+    expect(popupWindow.location.href).toBe("https://xaman.app/sign/payload-2");
+    expect(popupWindow.focus).toHaveBeenCalled();
   });
 
   it("throws a configuration error when api key is missing", async () => {
