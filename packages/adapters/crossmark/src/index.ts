@@ -1,6 +1,6 @@
 import sdk from "@crossmarkio/sdk";
 import { createWalletConnectError } from "../../../core/src/errors";
-import type { WalletAdapter } from "../../../core/src/types";
+import type { WalletAdapter, WalletConnectError } from "../../../core/src/types";
 
 function getResponseHash(response: unknown): string | undefined {
   if (
@@ -21,11 +21,22 @@ export function createCrossmarkAdapter(): WalletAdapter {
     name: "Crossmark",
     capabilities: ["connect", "signTransaction", "submitTransaction"],
     async isInstalled() {
-      return typeof window !== "undefined";
+      if (typeof window === "undefined") {
+        return false;
+      }
+
+      return sdk.sync.isInstalled() === true;
     },
     async connect() {
       try {
-        const result = await sdk.methods.signInAndWait();
+        if (!(await this.isInstalled())) {
+          throw createWalletConnectError(
+            "not_installed",
+            "Install Crossmark browser extension before connecting.",
+          );
+        }
+
+        const result = await sdk.async.signInAndWait();
         const address = result?.response?.data?.address;
 
         if (!address) {
@@ -45,7 +56,7 @@ export function createCrossmarkAdapter(): WalletAdapter {
     },
     async signTransaction({ transaction }) {
       try {
-        const result = await sdk.methods.signAndWait(transaction);
+        const result = await sdk.async.signAndWait(transaction);
         const txBlob = result?.response?.data?.txBlob;
 
         if (!txBlob) {
@@ -67,7 +78,7 @@ export function createCrossmarkAdapter(): WalletAdapter {
     },
     async submitTransaction({ transaction }) {
       try {
-        const result = await sdk.methods.signAndSubmitAndWait(transaction);
+        const result = await sdk.async.signAndSubmitAndWait(transaction);
         const response = result?.response?.data?.resp;
 
         return {
