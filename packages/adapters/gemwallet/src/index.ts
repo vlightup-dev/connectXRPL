@@ -1,4 +1,10 @@
-import { getAddress, getPublicKey, isInstalled, signTransaction, submitTransaction } from "@gemwallet/api";
+import {
+  getAddress,
+  getPublicKey,
+  isInstalled,
+  signTransaction,
+  submitTransaction,
+} from "@gemwallet/api";
 import { createWalletConnectError } from "../../../core/src/errors";
 import type { WalletAdapter } from "../../../core/src/types";
 export function createGemWalletAdapter(): WalletAdapter {
