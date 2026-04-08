@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCrossmarkAdapter } from "@crossmark/index";
 import { TEST_XRPL_ADDRESS } from "../fixtures/xrpl";
 
@@ -9,8 +9,12 @@ const { isInstalled, signAndSubmitAndWait, signAndWait, signInAndWait } = vi.hoi
   signInAndWait: vi.fn(),
 }));
 
-vi.mock("@crossmarkio/sdk", () => ({
-  default: {
+const sdkState = vi.hoisted(() => ({
+  mode: "namespaced" as "namespaced" | "methods",
+}));
+
+vi.mock("@crossmarkio/sdk", () => {
+  const namespacedSdk = {
     async: {
       signAndSubmitAndWait,
       signAndWait,
@@ -19,12 +23,34 @@ vi.mock("@crossmarkio/sdk", () => ({
     sync: {
       isInstalled,
     },
-  },
-}));
+  };
+
+  const methodsSdk = {
+    methods: {
+      isInstalled,
+      signAndSubmitAndWait,
+      signAndWait,
+      signInAndWait,
+    },
+  };
+
+  return {
+    default: new Proxy(
+      {},
+      {
+        get(_target, property) {
+          const activeSdk = sdkState.mode === "methods" ? methodsSdk : namespacedSdk;
+          return Reflect.get(activeSdk, property);
+        },
+      },
+    ),
+  };
+});
 
 describe("Crossmark adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sdkState.mode = "namespaced";
   });
 
   it("maps installed state from the sdk", async () => {
@@ -113,10 +139,44 @@ describe("Crossmark adapter", () => {
 
   it("throws a not installed error when the sdk reports the extension is missing", async () => {
     isInstalled.mockReturnValue(false);
+    signInAndWait.mockRejectedValue(new Error("Crossmark not installed"));
 
     await expect(createCrossmarkAdapter().connect()).rejects.toMatchObject({
       code: "not_installed",
     });
-    expect(signInAndWait).not.toHaveBeenCalled();
+    expect(signInAndWait).toHaveBeenCalled();
+  });
+
+  it("falls back to the methods sdk surface when async and sync are unavailable", async () => {
+    sdkState.mode = "methods";
+    isInstalled.mockReturnValue(true);
+    signInAndWait.mockResolvedValue({
+      response: {
+        data: {
+          address: TEST_XRPL_ADDRESS,
+        },
+      },
+    });
+
+    await expect(createCrossmarkAdapter().connect()).resolves.toEqual({
+      address: TEST_XRPL_ADDRESS,
+      network: "unknown",
+    });
+  });
+
+  it("does not block connect when isInstalled is false but sign-in succeeds", async () => {
+    isInstalled.mockReturnValue(false);
+    signInAndWait.mockResolvedValue({
+      response: {
+        data: {
+          address: TEST_XRPL_ADDRESS,
+        },
+      },
+    });
+
+    await expect(createCrossmarkAdapter().connect()).resolves.toEqual({
+      address: TEST_XRPL_ADDRESS,
+      network: "unknown",
+    });
   });
 });
