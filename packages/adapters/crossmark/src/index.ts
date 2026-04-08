@@ -15,6 +15,64 @@ function getResponseHash(response: unknown): string | undefined {
   return undefined;
 }
 
+type CrossmarkSdkSurface = {
+  async?: {
+    signInAndWait?: () => Promise<CrossmarkResponse>;
+    signAndWait?: (transaction: Record<string, unknown>) => Promise<CrossmarkResponse>;
+    signAndSubmitAndWait?: (
+      transaction: Record<string, unknown>,
+    ) => Promise<CrossmarkResponse>;
+  };
+  sync?: {
+    isInstalled?: () => boolean | undefined;
+  };
+  methods?: {
+    isInstalled?: () => boolean | undefined;
+    signInAndWait?: () => Promise<CrossmarkResponse>;
+    signAndWait?: (transaction: Record<string, unknown>) => Promise<CrossmarkResponse>;
+    signAndSubmitAndWait?: (
+      transaction: Record<string, unknown>,
+    ) => Promise<CrossmarkResponse>;
+  };
+};
+
+type CrossmarkResponse = {
+  response?: {
+    data?: {
+      address?: string;
+      txBlob?: string;
+      resp?: unknown;
+    };
+  };
+};
+
+function getCrossmarkSdk(): CrossmarkSdkSurface {
+  // When webpack bundles this library, the default import may be the module namespace
+  // object (with async/sync/methods under .default) rather than the SDK singleton directly.
+  const imported = sdk as unknown as CrossmarkSdkSurface & { default?: CrossmarkSdkSurface };
+  return imported.default ?? imported;
+}
+
+function getIsInstalledMethod() {
+  const crossmarkSdk = getCrossmarkSdk();
+  return crossmarkSdk.sync?.isInstalled ?? crossmarkSdk.methods?.isInstalled;
+}
+
+function getSignInAndWaitMethod() {
+  const crossmarkSdk = getCrossmarkSdk();
+  return crossmarkSdk.async?.signInAndWait ?? crossmarkSdk.methods?.signInAndWait;
+}
+
+function getSignAndWaitMethod() {
+  const crossmarkSdk = getCrossmarkSdk();
+  return crossmarkSdk.async?.signAndWait ?? crossmarkSdk.methods?.signAndWait;
+}
+
+function getSignAndSubmitAndWaitMethod() {
+  const crossmarkSdk = getCrossmarkSdk();
+  return crossmarkSdk.async?.signAndSubmitAndWait ?? crossmarkSdk.methods?.signAndSubmitAndWait;
+}
+
 export function createCrossmarkAdapter(): WalletAdapter {
   return {
     id: "crossmark",
@@ -25,18 +83,20 @@ export function createCrossmarkAdapter(): WalletAdapter {
         return false;
       }
 
-      return sdk.sync.isInstalled() === true;
+      const isInstalled = getIsInstalledMethod();
+
+      return isInstalled?.() === true;
     },
     async connect() {
       try {
-        if (!(await this.isInstalled())) {
-          throw createWalletConnectError(
-            "not_installed",
-            "Install Crossmark browser extension before connecting.",
-          );
+        debugger;
+        const signInAndWait = getSignInAndWaitMethod();
+
+        if (!signInAndWait) {
+          throw new Error("Crossmark sign-in API is unavailable.");
         }
 
-        const result = await sdk.async.signInAndWait();
+        const result = await signInAndWait();
         const address = result?.response?.data?.address;
 
         if (!address) {
@@ -48,6 +108,15 @@ export function createCrossmarkAdapter(): WalletAdapter {
           network: "unknown",
         };
       } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          (error as WalletConnectError).code === "not_installed"
+        ) {
+          throw error;
+        }
+
         const message = error instanceof Error ? error.message.toLowerCase() : "";
         const code = message.includes("not installed") ? "not_installed" : "connection_failed";
 
@@ -56,7 +125,13 @@ export function createCrossmarkAdapter(): WalletAdapter {
     },
     async signTransaction({ transaction }) {
       try {
-        const result = await sdk.async.signAndWait(transaction);
+        const signAndWait = getSignAndWaitMethod();
+
+        if (!signAndWait) {
+          throw new Error("Crossmark sign API is unavailable.");
+        }
+
+        const result = await signAndWait(transaction);
         const txBlob = result?.response?.data?.txBlob;
 
         if (!txBlob) {
@@ -78,7 +153,13 @@ export function createCrossmarkAdapter(): WalletAdapter {
     },
     async submitTransaction({ transaction }) {
       try {
-        const result = await sdk.async.signAndSubmitAndWait(transaction);
+        const signAndSubmitAndWait = getSignAndSubmitAndWaitMethod();
+
+        if (!signAndSubmitAndWait) {
+          throw new Error("Crossmark submit API is unavailable.");
+        }
+
+        const result = await signAndSubmitAndWait(transaction);
         const response = result?.response?.data?.resp;
 
         return {
