@@ -2,12 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCrossmarkAdapter } from "@crossmark/index";
 import { TEST_XRPL_ADDRESS } from "../fixtures/xrpl";
 
-const { isInstalled, signAndSubmitAndWait, signAndWait, signInAndWait } = vi.hoisted(() => ({
-  isInstalled: vi.fn(),
-  signAndSubmitAndWait: vi.fn(),
-  signAndWait: vi.fn(),
-  signInAndWait: vi.fn(),
-}));
+const { isInstalled, isConnected, getAddress, signAndSubmitAndWait, signAndWait, signInAndWait } =
+  vi.hoisted(() => ({
+    isInstalled: vi.fn(),
+    isConnected: vi.fn(),
+    getAddress: vi.fn(),
+    signAndSubmitAndWait: vi.fn(),
+    signAndWait: vi.fn(),
+    signInAndWait: vi.fn(),
+  }));
 
 const sdkState = vi.hoisted(() => ({
   mode: "namespaced" as "namespaced" | "methods",
@@ -22,6 +25,8 @@ vi.mock("@crossmarkio/sdk", () => {
     },
     sync: {
       isInstalled,
+      isConnected,
+      getAddress,
     },
   };
 
@@ -57,6 +62,30 @@ describe("Crossmark adapter", () => {
     isInstalled.mockReturnValue(true);
 
     await expect(createCrossmarkAdapter().isInstalled()).resolves.toBe(true);
+  });
+
+  it("returns the active account when the extension is connected", async () => {
+    isConnected.mockReturnValue(true);
+    getAddress.mockReturnValue(TEST_XRPL_ADDRESS);
+
+    await expect(createCrossmarkAdapter().getAccount?.()).resolves.toEqual({
+      address: TEST_XRPL_ADDRESS,
+      network: "unknown",
+    });
+  });
+
+  it("returns null when the extension is not connected", async () => {
+    isConnected.mockReturnValue(false);
+
+    await expect(createCrossmarkAdapter().getAccount?.()).resolves.toBeNull();
+    expect(getAddress).not.toHaveBeenCalled();
+  });
+
+  it("returns null when connected but address is unavailable", async () => {
+    isConnected.mockReturnValue(true);
+    getAddress.mockReturnValue(undefined);
+
+    await expect(createCrossmarkAdapter().getAccount?.()).resolves.toBeNull();
   });
 
   it("connects and returns a normalized account", async () => {

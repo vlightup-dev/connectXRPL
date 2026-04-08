@@ -25,6 +25,8 @@ type CrossmarkSdkSurface = {
   };
   sync?: {
     isInstalled?: () => boolean | undefined;
+    isConnected?: () => boolean | undefined;
+    getAddress?: () => string | undefined;
   };
   methods?: {
     isInstalled?: () => boolean | undefined;
@@ -77,7 +79,7 @@ export function createCrossmarkAdapter(): WalletAdapter {
   return {
     id: "crossmark",
     name: "Crossmark",
-    capabilities: ["connect", "signTransaction", "submitTransaction"],
+    capabilities: ["connect", "getAccount", "signTransaction", "submitTransaction"],
     async isInstalled() {
       if (typeof window === "undefined") {
         return false;
@@ -87,9 +89,22 @@ export function createCrossmarkAdapter(): WalletAdapter {
 
       return isInstalled?.() === true;
     },
+    async getAccount() {
+      const crossmarkSdk = getCrossmarkSdk();
+      const isConnected = crossmarkSdk.sync?.isConnected?.();
+      if (!isConnected) {
+        return null;
+      }
+
+      const address = crossmarkSdk.sync?.getAddress?.();
+      if (!address) {
+        return null;
+      }
+
+      return { address, network: "unknown" };
+    },
     async connect() {
       try {
-        debugger;
         const signInAndWait = getSignInAndWaitMethod();
 
         if (!signInAndWait) {
