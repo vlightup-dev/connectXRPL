@@ -19,9 +19,7 @@ type CrossmarkSdkSurface = {
   async?: {
     signInAndWait?: () => Promise<CrossmarkResponse>;
     signAndWait?: (transaction: Record<string, unknown>) => Promise<CrossmarkResponse>;
-    signAndSubmitAndWait?: (
-      transaction: Record<string, unknown>,
-    ) => Promise<CrossmarkResponse>;
+    signAndSubmitAndWait?: (transaction: Record<string, unknown>) => Promise<CrossmarkResponse>;
   };
   sync?: {
     isInstalled?: () => boolean | undefined;
@@ -32,9 +30,7 @@ type CrossmarkSdkSurface = {
     isInstalled?: () => boolean | undefined;
     signInAndWait?: () => Promise<CrossmarkResponse>;
     signAndWait?: (transaction: Record<string, unknown>) => Promise<CrossmarkResponse>;
-    signAndSubmitAndWait?: (
-      transaction: Record<string, unknown>,
-    ) => Promise<CrossmarkResponse>;
+    signAndSubmitAndWait?: (transaction: Record<string, unknown>) => Promise<CrossmarkResponse>;
   };
 };
 
