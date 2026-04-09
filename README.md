@@ -65,6 +65,21 @@ Notes:
 - `npm run test`
 - `npm run build`
 
+## Releases
+
+Releases are automated via [semantic-release](https://semantic-release.gitbook.io/semantic-release/).
+Versions are determined automatically from commit messages following the
+[Conventional Commits](https://www.conventionalcommits.org/) spec:
+
+| Commit prefix                 | Version bump    |
+| ----------------------------- | --------------- |
+| `fix: ...`                    | patch (`0.1.1`) |
+| `feat: ...`                   | minor (`0.2.0`) |
+| `feat!:` or `BREAKING CHANGE` | major (`1.0.0`) |
+
+Merging to `master` publishes a stable release to npm. Merging to `next` publishes a pre-release
+under the `@next` tag.
+
 ## License
 
 MIT. See [LICENSE](./LICENSE).
