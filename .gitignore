@@ -8,6 +8,8 @@ build
 # testing
 coverage
 
+.claude
+
 # editor / IDE
 .vscode
 .idea
