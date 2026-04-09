@@ -13,7 +13,7 @@ const { isInstalled, isConnected, getAddress, signAndSubmitAndWait, signAndWait,
   }));
 
 const sdkState = vi.hoisted(() => ({
-  mode: "namespaced" as "namespaced" | "methods",
+  mode: "namespaced" as "namespaced" | "methods" | "wrapped",
 }));
 
 vi.mock("@crossmarkio/sdk", () => {
@@ -39,13 +39,20 @@ vi.mock("@crossmarkio/sdk", () => {
     },
   };
 
+  // Simulates the webpack module namespace wrapping: sdk.default is the real SDK,
+  // sdk itself has no async/sync/methods at the top level.
+  const wrappedSdk = {
+    default: namespacedSdk,
+  };
+
   return {
     default: new Proxy(
       {},
       {
         get(_target, property) {
-          const activeSdk = sdkState.mode === "methods" ? methodsSdk : namespacedSdk;
-          return Reflect.get(activeSdk, property);
+          if (sdkState.mode === "methods") return Reflect.get(methodsSdk, property);
+          if (sdkState.mode === "wrapped") return Reflect.get(wrappedSdk, property);
+          return Reflect.get(namespacedSdk, property);
         },
       },
     ),
@@ -88,7 +95,29 @@ describe("Crossmark adapter", () => {
     await expect(createCrossmarkAdapter().getAccount?.()).resolves.toBeNull();
   });
 
+  it("returns null from getAccount when using the methods sdk surface (no sync namespace)", async () => {
+    sdkState.mode = "methods";
+
+    await expect(createCrossmarkAdapter().getAccount?.()).resolves.toBeNull();
+  });
+
   it("connects and returns a normalized account", async () => {
+    signInAndWait.mockResolvedValue({
+      response: {
+        data: {
+          address: TEST_XRPL_ADDRESS,
+        },
+      },
+    });
+
+    await expect(createCrossmarkAdapter().connect()).resolves.toEqual({
+      address: TEST_XRPL_ADDRESS,
+      network: "unknown",
+    });
+  });
+
+  it("connects correctly when the sdk is wrapped in a module namespace object", async () => {
+    sdkState.mode = "wrapped";
     signInAndWait.mockResolvedValue({
       response: {
         data: {
@@ -132,6 +161,14 @@ describe("Crossmark adapter", () => {
     expect(signAndSubmitAndWait).toHaveBeenCalledWith(transaction);
   });
 
+  it("wraps submission failures with a submission_failed error code", async () => {
+    signAndSubmitAndWait.mockRejectedValue(new Error("network timeout"));
+
+    await expect(
+      createCrossmarkAdapter().submitTransaction?.({ transaction: {} }),
+    ).rejects.toMatchObject({ code: "submission_failed" });
+  });
+
   it("signs transactions with Crossmark via the async sdk namespace", async () => {
     signAndWait.mockResolvedValue({
       response: {
@@ -156,6 +193,14 @@ describe("Crossmark adapter", () => {
       },
     });
     expect(signAndWait).toHaveBeenCalledWith(transaction);
+  });
+
+  it("wraps signing failures with a signing_failed error code", async () => {
+    signAndWait.mockRejectedValue(new Error("user rejected"));
+
+    await expect(
+      createCrossmarkAdapter().signTransaction?.({ transaction: {} }),
+    ).rejects.toMatchObject({ code: "signing_failed" });
   });
 
   it("normalizes extension install failures", async () => {

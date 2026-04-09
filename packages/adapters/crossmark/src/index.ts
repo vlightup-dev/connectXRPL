@@ -49,8 +49,11 @@ type CrossmarkResponse = {
 };
 
 function getCrossmarkSdk(): CrossmarkSdkSurface {
-  // When webpack bundles this library, the default import may be the module namespace
-  // object (with async/sync/methods under .default) rather than the SDK singleton directly.
+  // When webpack (e.g. Next.js) bundles this library, the default import of @crossmarkio/sdk
+  // may be the module namespace object ({ default: sdkSingleton }) rather than the singleton
+  // directly. Unwrap .default when present so that async/sync/methods are always accessible.
+  // Assumption: if .default is non-nullish, it is the real SDK surface. This would break if
+  // a future SDK version adds an unrelated top-level "default" property.
   const imported = sdk as unknown as CrossmarkSdkSurface & { default?: CrossmarkSdkSurface };
   return imported.default ?? imported;
 }
@@ -98,6 +101,8 @@ export function createCrossmarkAdapter(): WalletAdapter {
 
       const address = crossmarkSdk.sync?.getAddress?.();
       if (!address) {
+        // Extension is connected but address is not yet cached (e.g. during startup).
+        // Returning null lets the caller fall back to connect(), which may show a sign-in popup.
         return null;
       }
 
