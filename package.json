@@ -52,11 +52,6 @@
     "vite-plus": "^0.1.12",
     "vitest": "^3.0.8"
   },
-  "optionalDependencies": {
-    "@oxfmt/binding-darwin-arm64": "^0.42.0",
-    "@oxlint/binding-darwin-arm64": "^1.57.0",
-    "@voidzero-dev/vite-plus-darwin-arm64": "^0.1.14"
-  },
   "peerDependencies": {
     "@crossmarkio/sdk": ">=0.4",
     "@gemwallet/api": ">=3",
@@ -84,6 +79,11 @@
     "xumm-oauth2-pkce": {
       "optional": true
     }
+  },
+  "optionalDependencies": {
+    "@oxfmt/binding-darwin-arm64": "^0.42.0",
+    "@oxlint/binding-darwin-arm64": "^1.57.0",
+    "@voidzero-dev/vite-plus-darwin-arm64": "^0.1.14"
   },
   "engines": {
     "node": ">=18"
