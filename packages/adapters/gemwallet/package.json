@@ -1,5 +1,5 @@
 {
-  "name": "@trustauthy/xrpl-wallet-connect-gemwallet",
+  "name": "@trustauthy/connectxrpl-gemwallet",
   "version": "0.1.0",
   "private": true,
   "type": "module",

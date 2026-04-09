@@ -1,5 +1,5 @@
 {
-  "name": "@trustauthy/xrpl-wallet-connect-core",
+  "name": "@trustauthy/connectxrpl-core",
   "version": "0.1.0",
   "private": true,
   "type": "module",
