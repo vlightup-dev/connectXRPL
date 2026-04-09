@@ -59,6 +59,15 @@ Notes:
 - If you need backend-generated or long-lived user-bound sign request management, follow Xaman's
   backend/API flow instead of exposing extra credentials in the browser.
 
+### GemWallet Setup
+
+The GemWallet adapter connects by calling `getAddress()` from the GemWallet API, which returns
+the wallet address without requiring any user confirmation or cryptographic proof.
+
+> **Warning:** GemWallet `connect()` does not authenticate the user. It only retrieves the wallet
+> address from the extension. You must implement your own authentication step (e.g. sign a
+> challenge message with `signMessage`) before treating a connected GemWallet address as verified.
+
 ## Commands
 
 - `npm run check`
