@@ -1,6 +1,6 @@
-# XRPL Wallet Connect
+# connectXRPL
 
-`@trustauthy/xrpl-wallet-connect` is a React and TypeScript wallet-connect package for XRPL wallets.
+`@trustauthy/connectxrpl` is a React and TypeScript wallet-connect package for XRPL wallets.
 
 This package is open source software.
 
@@ -15,16 +15,13 @@ Consumers should render their own wallet selection UI and call adapters directly
 ## Install
 
 ```bash
-npm install @trustauthy/xrpl-wallet-connect
+npm install @trustauthy/connectxrpl
 ```
 
 ## Usage
 
 ```ts
-import {
-  createGemWalletAdapter,
-  createXamanAdapter,
-} from "@trustauthy/xrpl-wallet-connect/adapters";
+import { createGemWalletAdapter, createXamanAdapter } from "@trustauthy/connectxrpl/adapters";
 ```
 
 ### Xaman Setup
@@ -43,7 +40,7 @@ Before using `createXamanAdapter(...)`, you need to:
 Example:
 
 ```ts
-import { createXamanAdapter } from "@trustauthy/xrpl-wallet-connect/adapters";
+import { createXamanAdapter } from "@trustauthy/connectxrpl/adapters";
 
 const xamanAdapter = createXamanAdapter({
   apiKey: process.env.NEXT_PUBLIC_XAMAN_API_KEY,
@@ -62,11 +59,35 @@ Notes:
 - If you need backend-generated or long-lived user-bound sign request management, follow Xaman's
   backend/API flow instead of exposing extra credentials in the browser.
 
+### GemWallet Setup
+
+The GemWallet adapter connects by calling `getAddress()` from the GemWallet API, which returns
+the wallet address without requiring any user confirmation or cryptographic proof.
+
+> **Warning:** GemWallet `connect()` does not authenticate the user. It only retrieves the wallet
+> address from the extension. You must implement your own authentication step (e.g. sign a
+> challenge message with `signMessage`) before treating a connected GemWallet address as verified.
+
 ## Commands
 
 - `npm run check`
 - `npm run test`
 - `npm run build`
+
+## Releases
+
+Releases are automated via [semantic-release](https://semantic-release.gitbook.io/semantic-release/).
+Versions are determined automatically from commit messages following the
+[Conventional Commits](https://www.conventionalcommits.org/) spec:
+
+| Commit prefix                 | Version bump    |
+| ----------------------------- | --------------- |
+| `fix: ...`                    | patch (`0.1.1`) |
+| `feat: ...`                   | minor (`0.2.0`) |
+| `feat!:` or `BREAKING CHANGE` | major (`1.0.0`) |
+
+Merging to `master` publishes a stable release to npm. Merging to `next` publishes a pre-release
+under the `@next` tag.
 
 ## License
 
