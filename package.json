@@ -2,6 +2,10 @@
   "name": "@trustauthy/connectxrpl",
   "version": "0.1.1",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vlightup-dev/connectXRPL.git"
+  },
   "workspaces": [
     "packages/core",
     "packages/react",
