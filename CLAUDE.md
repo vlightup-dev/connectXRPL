@@ -34,5 +34,6 @@ npm run build   # tsc -p tsconfig.build.json
 - **All wallet adapter dependencies are optional peer deps**
 
 ## Branches
+
 - `master` — stable releases
 - `next` — prerelease channel
