@@ -2,15 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCrossmarkAdapter } from "@crossmark/index";
 import { TEST_XRPL_ADDRESS } from "../fixtures/xrpl";
 
-const { isInstalled, isConnected, getAddress, signAndSubmitAndWait, signAndWait, signInAndWait } =
-  vi.hoisted(() => ({
-    isInstalled: vi.fn(),
-    isConnected: vi.fn(),
-    getAddress: vi.fn(),
-    signAndSubmitAndWait: vi.fn(),
-    signAndWait: vi.fn(),
-    signInAndWait: vi.fn(),
-  }));
+const { isInstalled, isConnected, getAddress, signAndWait, signInAndWait } = vi.hoisted(() => ({
+  isInstalled: vi.fn(),
+  isConnected: vi.fn(),
+  getAddress: vi.fn(),
+  signAndWait: vi.fn(),
+  signInAndWait: vi.fn(),
+}));
 
 const sdkState = vi.hoisted(() => ({
   mode: "namespaced" as "namespaced" | "methods" | "wrapped",
@@ -19,7 +17,6 @@ const sdkState = vi.hoisted(() => ({
 vi.mock("@crossmarkio/sdk", () => {
   const namespacedSdk = {
     async: {
-      signAndSubmitAndWait,
       signAndWait,
       signInAndWait,
     },
@@ -33,7 +30,6 @@ vi.mock("@crossmarkio/sdk", () => {
   const methodsSdk = {
     methods: {
       isInstalled,
-      signAndSubmitAndWait,
       signAndWait,
       signInAndWait,
     },
@@ -132,41 +128,8 @@ describe("Crossmark adapter", () => {
     });
   });
 
-  it("submits transactions with Crossmark", async () => {
-    signAndSubmitAndWait.mockResolvedValue({
-      response: {
-        data: {
-          resp: {
-            hash: "FAKE_HASH",
-          },
-        },
-      },
-    });
-
-    const transaction = {
-      TransactionType: "Payment",
-      Account: TEST_XRPL_ADDRESS,
-    };
-
-    await expect(
-      createCrossmarkAdapter().submitTransaction?.({
-        transaction,
-      }),
-    ).resolves.toEqual({
-      hash: "FAKE_HASH",
-      result: {
-        hash: "FAKE_HASH",
-      },
-    });
-    expect(signAndSubmitAndWait).toHaveBeenCalledWith(transaction);
-  });
-
-  it("wraps submission failures with a submission_failed error code", async () => {
-    signAndSubmitAndWait.mockRejectedValue(new Error("network timeout"));
-
-    await expect(
-      createCrossmarkAdapter().submitTransaction?.({ transaction: {} }),
-    ).rejects.toMatchObject({ code: "submission_failed" });
+  it("does not expose submitTransaction so apps submit via their own xrpl Client after sign", () => {
+    expect(createCrossmarkAdapter().submitTransaction).toBeUndefined();
   });
 
   it("signs transactions with Crossmark via the async sdk namespace", async () => {
@@ -201,6 +164,50 @@ describe("Crossmark adapter", () => {
     await expect(
       createCrossmarkAdapter().signTransaction?.({ transaction: {} }),
     ).rejects.toMatchObject({ code: "signing_failed" });
+  });
+
+  it("throws signing_failed before opening the popup when the transaction is a multisig co-sign for a different account", async () => {
+    // Crossmark only accepts transactions where Account matches the connected wallet.
+    // For multisig co-signing, Account is the org/escrow account, not the signer's address.
+    isConnected.mockReturnValue(true);
+    getAddress.mockReturnValue(TEST_XRPL_ADDRESS);
+
+    const multisigTx = {
+      TransactionType: "EscrowCreate",
+      Account: "rDIFFERENT_ORG_ACCOUNT_ADDRESS",
+      SigningPubKey: "",
+    };
+
+    await expect(
+      createCrossmarkAdapter().signTransaction?.({ transaction: multisigTx }),
+    ).rejects.toMatchObject({
+      code: "signing_failed",
+      message: expect.stringContaining("multisig co-signer"),
+    });
+
+    // signAndWait must NOT be called — the error is detected before the popup opens.
+    expect(signAndWait).not.toHaveBeenCalled();
+  });
+
+  it("allows signing a multisig transaction when Account matches the connected wallet", async () => {
+    isConnected.mockReturnValue(true);
+    getAddress.mockReturnValue(TEST_XRPL_ADDRESS);
+    signAndWait.mockResolvedValue({
+      response: { data: { txBlob: "MULTISIG_BLOB" } },
+    });
+
+    // Account === connected address: this is the account owner doing a multisig send,
+    // which Crossmark supports fine.
+    const transaction = {
+      TransactionType: "Payment",
+      Account: TEST_XRPL_ADDRESS,
+      SigningPubKey: "",
+    };
+
+    await expect(createCrossmarkAdapter().signTransaction?.({ transaction })).resolves.toEqual({
+      signedTransaction: { txBlob: "MULTISIG_BLOB" },
+    });
+    expect(signAndWait).toHaveBeenCalledWith(transaction);
   });
 
   it("normalizes extension install failures", async () => {

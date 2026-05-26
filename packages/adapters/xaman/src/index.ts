@@ -27,6 +27,8 @@ type XamanPayloadRequest = {
   txjson: Record<string, unknown>;
   options: {
     submit: false;
+    /** Set to true for multisig co-signing so Xaman uses the correct signing mode. */
+    multisign?: boolean;
     return_url?: {
       app: string;
       web: string;
@@ -256,10 +258,16 @@ export function createXamanAdapter(options: XamanAdapterOptions = {}): WalletAda
           throw new Error("Xaman payload SDK is unavailable.");
         }
 
+        // SigningPubKey: "" signals an XRPL multisig co-signing request.
+        // Xaman requires multisign: true in the payload options to show the correct
+        // signing UI and produce a valid co-signer signature (MULTISIG_PREFIX bytes).
+        const isMultisigCoSign = transaction.SigningPubKey === "";
+
         const payloadRequest: XamanPayloadRequest = {
           txjson: transaction,
           options: {
             submit: false,
+            ...(isMultisigCoSign && { multisign: true }),
             return_url: getReturnUrl(options.redirectUrl),
           },
         };
