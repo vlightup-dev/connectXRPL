@@ -66,17 +66,24 @@ export function createGemWalletAdapter(): WalletAdapter {
     },
     async signTransaction({ transaction }) {
       try {
-        const [signResponse, publicKeyResponse] = await Promise.all([
-          signTransaction({ transaction }),
-          getPublicKey(),
-        ]);
-
-        const signature = signResponse.result?.signature;
+        // Fetch the public key first (may show a one-time "Share public key" popup),
+        // then sign the transaction (shows the signing popup).
+        // Using Promise.all for both concurrent causes GemWallet to queue them — the user
+        // sees the sign popup, approves it, and then a second "Share public key" popup
+        // silently waits behind the scenes, leaving the UI hung until it is resolved.
+        const publicKeyResponse = await getPublicKey();
         const publicKey = publicKeyResponse.result?.publicKey;
         const address = publicKeyResponse.result?.address;
 
-        if (!signature || !publicKey || !address) {
-          throw new Error("GemWallet did not return a complete signature response.");
+        if (!publicKey || !address) {
+          throw new Error("GemWallet did not return a public key.");
+        }
+
+        const signResponse = await signTransaction({ transaction });
+        const signature = signResponse.result?.signature;
+
+        if (!signature) {
+          throw new Error("GemWallet did not return a signature.");
         }
 
         return {
@@ -88,6 +95,9 @@ export function createGemWalletAdapter(): WalletAdapter {
           },
         };
       } catch (error) {
+        if (typeof error === "object" && error !== null && "code" in error) {
+          throw error;
+        }
         throw createWalletConnectError(
           "signing_failed",
           "GemWallet transaction signing failed.",
