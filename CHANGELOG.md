@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/vlightup-dev/connectXRPL/compare/v1.0.0...v1.0.1) (2026-05-26)
+
+
+### Bug Fixes
+
+* **adapters:** add XRPL multisig co-signing support and fix Vite path aliases ([d89a188](https://github.com/vlightup-dev/connectXRPL/commit/d89a1888f6b850b9f4e8547a4435ef99e3ae35ac))
+
 # 1.0.0 (2026-04-10)
 
 
