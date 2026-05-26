@@ -1,20 +1,30 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createGemWalletAdapter } from "@gemwallet/index";
 import { TEST_XRPL_ADDRESS } from "../fixtures/xrpl";
 
-const { getAddress, isInstalled, submitTransaction } = vi.hoisted(() => ({
+const { getAddress, getNetwork, isInstalled, submitTransaction } = vi.hoisted(() => ({
   getAddress: vi.fn(),
+  getNetwork: vi.fn(),
   isInstalled: vi.fn(),
   submitTransaction: vi.fn(),
 }));
 
 vi.mock("@gemwallet/api", () => ({
   getAddress,
+  getNetwork,
   isInstalled,
   submitTransaction,
 }));
 
 describe("GemWallet adapter", () => {
+  beforeEach(() => {
+    getNetwork.mockResolvedValue({
+      result: {
+        network: "Testnet",
+      },
+    });
+  });
+
   it("maps installed state", async () => {
     isInstalled.mockResolvedValue({
       result: {
@@ -39,7 +49,7 @@ describe("GemWallet adapter", () => {
 
     await expect(createGemWalletAdapter().connect()).resolves.toEqual({
       address: TEST_XRPL_ADDRESS,
-      network: "unknown",
+      network: "testnet",
     });
   });
 
@@ -63,6 +73,26 @@ describe("GemWallet adapter", () => {
       },
     });
     expect(submitTransaction).toHaveBeenCalledWith({ transaction });
+  });
+
+  it("rejects submit when GemWallet is not on testnet", async () => {
+    getNetwork.mockResolvedValue({
+      result: {
+        network: "Mainnet",
+      },
+    });
+
+    await expect(
+      createGemWalletAdapter().submitTransaction?.({
+        transaction: {
+          TransactionType: "Payment",
+          Account: TEST_XRPL_ADDRESS,
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "configuration_error",
+      message: "GemWallet is on mainnet. Switch GemWallet to XRPL Testnet and retry.",
+    });
   });
 
   it("normalizes connect failures", async () => {

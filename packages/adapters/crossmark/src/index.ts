@@ -2,24 +2,10 @@ import sdk from "@crossmarkio/sdk";
 import { createWalletConnectError } from "../../../core/src/errors";
 import type { WalletAdapter, WalletConnectError } from "../../../core/src/types";
 
-function getResponseHash(response: unknown): string | undefined {
-  if (
-    typeof response === "object" &&
-    response !== null &&
-    "hash" in response &&
-    typeof response.hash === "string"
-  ) {
-    return response.hash;
-  }
-
-  return undefined;
-}
-
 type CrossmarkSdkSurface = {
   async?: {
     signInAndWait?: () => Promise<CrossmarkResponse>;
     signAndWait?: (transaction: Record<string, unknown>) => Promise<CrossmarkResponse>;
-    signAndSubmitAndWait?: (transaction: Record<string, unknown>) => Promise<CrossmarkResponse>;
   };
   sync?: {
     isInstalled?: () => boolean | undefined;
@@ -30,7 +16,6 @@ type CrossmarkSdkSurface = {
     isInstalled?: () => boolean | undefined;
     signInAndWait?: () => Promise<CrossmarkResponse>;
     signAndWait?: (transaction: Record<string, unknown>) => Promise<CrossmarkResponse>;
-    signAndSubmitAndWait?: (transaction: Record<string, unknown>) => Promise<CrossmarkResponse>;
   };
 };
 
@@ -69,16 +54,14 @@ function getSignAndWaitMethod() {
   return crossmarkSdk.async?.signAndWait ?? crossmarkSdk.methods?.signAndWait;
 }
 
-function getSignAndSubmitAndWaitMethod() {
-  const crossmarkSdk = getCrossmarkSdk();
-  return crossmarkSdk.async?.signAndSubmitAndWait ?? crossmarkSdk.methods?.signAndSubmitAndWait;
-}
-
 export function createCrossmarkAdapter(): WalletAdapter {
   return {
     id: "crossmark",
     name: "Crossmark",
-    capabilities: ["connect", "getAccount", "signTransaction", "submitTransaction"],
+    // No submitTransaction: Crossmark's signAndSubmitAndWait submits via the extension and waits
+    // for validation on its own rippled, which can hang ("Please wait…") or disagree with the
+    // app's network. Callers should sign (signAndWait) and submit via their xrpl Client instead.
+    capabilities: ["connect", "getAccount", "signTransaction"],
     async isInstalled() {
       if (typeof window === "undefined") {
         return false;
@@ -147,6 +130,29 @@ export function createCrossmarkAdapter(): WalletAdapter {
           throw new Error("Crossmark sign API is unavailable.");
         }
 
+        // Crossmark's extension validates that transaction.Account matches the address of
+        // a "card" stored in the connected wallet. For XRPL multisig co-signing, Account
+        // is the org/escrow account — not the individual signer's address — so Crossmark
+        // rejects immediately with a cryptic "card not found" error.
+        //
+        // There is no workaround: XRPL multisig signing serializes Account as part of the
+        // bytes being signed (MULTISIG_PREFIX + encode_for_signing(tx) + signer_address),
+        // so substituting the signer's address into Account would produce a signature that
+        // the ledger considers invalid.
+        //
+        // Detect this early and throw a clear error before the popup opens.
+        if (transaction.SigningPubKey === "") {
+          const connectedAddress = getCrossmarkSdk().sync?.getAddress?.();
+          if (connectedAddress && transaction.Account !== connectedAddress) {
+            throw createWalletConnectError(
+              "signing_failed",
+              "Crossmark cannot sign as a multisig co-signer when the transaction " +
+                "Account differs from the connected wallet address. " +
+                "Use GemWallet or Xaman for multisig co-signing.",
+            );
+          }
+        }
+
         const result = await signAndWait(transaction);
         const txBlob = result?.response?.data?.txBlob;
 
@@ -160,32 +166,16 @@ export function createCrossmarkAdapter(): WalletAdapter {
           },
         };
       } catch (error) {
+        // Re-throw WalletConnectErrors as-is so their message and code are preserved.
+        // Without this guard the descriptive message above would be clobbered by the
+        // generic "Crossmark transaction signing failed." wrapper below.
+        if (typeof error === "object" && error !== null && "code" in error) {
+          throw error;
+        }
+
         throw createWalletConnectError(
           "signing_failed",
           "Crossmark transaction signing failed.",
-          error,
-        );
-      }
-    },
-    async submitTransaction({ transaction }) {
-      try {
-        const signAndSubmitAndWait = getSignAndSubmitAndWaitMethod();
-
-        if (!signAndSubmitAndWait) {
-          throw new Error("Crossmark submit API is unavailable.");
-        }
-
-        const result = await signAndSubmitAndWait(transaction);
-        const response = result?.response?.data?.resp;
-
-        return {
-          hash: getResponseHash(response),
-          result: response,
-        };
-      } catch (error) {
-        throw createWalletConnectError(
-          "submission_failed",
-          "Crossmark transaction submission failed.",
           error,
         );
       }

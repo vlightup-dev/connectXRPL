@@ -1,5 +1,6 @@
 import {
   getAddress,
+  getNetwork,
   getPublicKey,
   isInstalled,
   signTransaction,
@@ -7,6 +8,17 @@ import {
 } from "@gemwallet/api";
 import { createWalletConnectError } from "../../../core/src/errors";
 import type { WalletAdapter } from "../../../core/src/types";
+
+function normalizeGemWalletNetwork(raw: unknown): "mainnet" | "testnet" | "devnet" | "unknown" {
+  const value = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (value === "mainnet") return "mainnet";
+  if (value === "testnet") return "testnet";
+  if (value === "devnet") return "devnet";
+  return "unknown";
+}
+
 export function createGemWalletAdapter(): WalletAdapter {
   return {
     id: "gemwallet",
@@ -26,13 +38,15 @@ export function createGemWalletAdapter(): WalletAdapter {
 
         const response = await getAddress();
         const address = response.result?.address;
+        const networkResponse = await getNetwork().catch(() => null);
+        const network = normalizeGemWalletNetwork(networkResponse?.result?.network);
 
         if (!address) {
           throw new Error("GemWallet did not return an address.");
         }
         return {
           address,
-          network: "unknown",
+          network,
         };
       } catch (error) {
         if (
@@ -83,6 +97,14 @@ export function createGemWalletAdapter(): WalletAdapter {
     },
     async submitTransaction({ transaction }) {
       try {
+        const networkResponse = await getNetwork().catch(() => null);
+        const network = normalizeGemWalletNetwork(networkResponse?.result?.network);
+        if (network !== "testnet") {
+          throw createWalletConnectError(
+            "configuration_error",
+            `GemWallet is on ${network}. Switch GemWallet to XRPL Testnet and retry.`,
+          );
+        }
         const response = await submitTransaction({ transaction });
 
         return {
@@ -90,6 +112,14 @@ export function createGemWalletAdapter(): WalletAdapter {
           result: response.result,
         };
       } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          typeof (error as { code?: unknown }).code === "string"
+        ) {
+          throw error;
+        }
         throw createWalletConnectError(
           "submission_failed",
           "GemWallet transaction submission failed.",
