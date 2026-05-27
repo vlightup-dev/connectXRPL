@@ -268,6 +268,124 @@ describe("Xaman adapter", () => {
     expect(popupWindow.focus).toHaveBeenCalled();
   });
 
+  it("omits return_url for multisig co-sign payloads", async () => {
+    setMockSession(true);
+    createAndSubscribe.mockResolvedValue({
+      created: {
+        next: {
+          always: "https://xaman.app/sign/payload-multisig",
+        },
+      },
+      resolved: Promise.resolve({
+        data: {
+          signed: true,
+        },
+      }),
+    });
+    getPayload.mockResolvedValue({
+      response: {
+        hex: "MULTISIG_BLOB",
+      },
+    });
+
+    const adapter = createXamanAdapter({
+      apiKey: "xaman-key",
+      redirectUrl: "http://localhost:3000/sign",
+    });
+
+    await adapter.signTransaction?.({
+      transaction: {
+        TransactionType: "EscrowCreate",
+        Account: "rORG123",
+        SigningPubKey: "",
+        Fee: "20",
+        Sequence: 1,
+      },
+    });
+
+    expect(createAndSubscribe).toHaveBeenCalledWith(
+      {
+        txjson: {
+          TransactionType: "EscrowCreate",
+          Account: "rORG123",
+          SigningPubKey: "",
+          Fee: "20",
+          Sequence: 1,
+        },
+        options: {
+          submit: false,
+          multisign: true,
+        },
+      },
+      expect.any(Function),
+    );
+  });
+
+  it("reuses the active popup for sequential sign requests", async () => {
+    setMockSession(true);
+
+    const popupWindow = {
+      closed: false,
+      focus: vi.fn(),
+      location: {
+        href: "",
+      },
+    };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(popupWindow as never);
+
+    prepareXamanSignRequestWindow();
+
+    createAndSubscribe
+      .mockResolvedValueOnce({
+        created: {
+          next: {
+            always: "https://xaman.app/sign/payload-first",
+          },
+        },
+        resolved: Promise.resolve({
+          data: {
+            signed: true,
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        created: {
+          next: {
+            always: "https://xaman.app/sign/payload-second",
+          },
+        },
+        resolved: Promise.resolve({
+          data: {
+            signed: true,
+          },
+        }),
+      });
+    getPayload.mockResolvedValue({
+      response: {
+        hex: "SIGNED_BLOB",
+      },
+    });
+
+    const adapter = createXamanAdapter({
+      apiKey: "xaman-key",
+      redirectUrl: "http://localhost:3000/sign",
+    });
+
+    const multisigTx = {
+      TransactionType: "EscrowFinish",
+      Account: "rORG123",
+      SigningPubKey: "",
+      Fee: "20",
+      Sequence: 1,
+    };
+
+    await adapter.signTransaction?.({ transaction: multisigTx });
+    await adapter.signTransaction?.({ transaction: multisigTx });
+
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    expect(popupWindow.location.href).toBe("https://xaman.app/sign/payload-second");
+  });
+
   it("throws a configuration error when api key is missing", async () => {
     await expect(createXamanAdapter().connect()).rejects.toMatchObject({
       code: "configuration_error",
