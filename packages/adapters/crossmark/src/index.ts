@@ -130,29 +130,10 @@ export function createCrossmarkAdapter(): WalletAdapter {
           throw new Error("Crossmark sign API is unavailable.");
         }
 
-        // Crossmark's extension validates that transaction.Account matches the address of
-        // a "card" stored in the connected wallet. For XRPL multisig co-signing, Account
-        // is the org/escrow account — not the individual signer's address — so Crossmark
-        // rejects immediately with a cryptic "card not found" error.
-        //
-        // There is no workaround: XRPL multisig signing serializes Account as part of the
-        // bytes being signed (MULTISIG_PREFIX + encode_for_signing(tx) + signer_address),
-        // so substituting the signer's address into Account would produce a signature that
-        // the ledger considers invalid.
-        //
-        // Detect this early and throw a clear error before the popup opens.
-        if (transaction.SigningPubKey === "") {
-          const connectedAddress = getCrossmarkSdk().sync?.getAddress?.();
-          if (connectedAddress && transaction.Account !== connectedAddress) {
-            throw createWalletConnectError(
-              "signing_failed",
-              "Crossmark cannot sign as a multisig co-signer when the transaction " +
-                "Account differs from the connected wallet address. " +
-                "Use GemWallet or Xaman for multisig co-signing.",
-            );
-          }
-        }
-
+        // Crossmark's signAndWait supports XRPL multisig co-signing: pass the transaction
+        // with SigningPubKey: "" and Account set to the multisig org account (not the
+        // signer's own address).  Crossmark signs with MULTISIG_PREFIX and returns a
+        // txBlob containing a Signers array with the signer's entry already assembled.
         const result = await signAndWait(transaction);
         const txBlob = result?.response?.data?.txBlob;
 
