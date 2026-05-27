@@ -48,6 +48,8 @@ type XamanResolvedPayload = {
 
 const clientCache = new Map<string, Xumm>();
 let preparedSignRequestWindow: Window | null = null;
+/** Reused across sequential signTransaction calls (e.g. EscrowCreate then EscrowFinish). */
+let activeSignPopup: Window | null = null;
 
 function getCacheKey({ apiKey, redirectUrl }: XamanAdapterOptions) {
   return `${apiKey ?? ""}::${redirectUrl ?? ""}`;
@@ -73,7 +75,9 @@ function openPreparedWindow(signUrl: string) {
   const popup =
     preparedSignRequestWindow && !preparedSignRequestWindow.closed
       ? preparedSignRequestWindow
-      : safeWindowOpen();
+      : activeSignPopup && !activeSignPopup.closed
+        ? activeSignPopup
+        : safeWindowOpen();
 
   preparedSignRequestWindow = null;
 
@@ -81,6 +85,7 @@ function openPreparedWindow(signUrl: string) {
     return;
   }
 
+  activeSignPopup = popup;
   popup.location.href = signUrl;
   popup.focus?.();
 }
@@ -103,6 +108,12 @@ export function clearPreparedXamanSignRequestWindow() {
   }
 
   preparedSignRequestWindow = null;
+
+  if (activeSignPopup && !activeSignPopup.closed && typeof activeSignPopup.close === "function") {
+    activeSignPopup.close();
+  }
+
+  activeSignPopup = null;
 }
 
 function getClient(options: XamanAdapterOptions) {
@@ -268,7 +279,9 @@ export function createXamanAdapter(options: XamanAdapterOptions = {}): WalletAda
           options: {
             submit: false,
             ...(isMultisigCoSign && { multisign: true }),
-            return_url: getReturnUrl(options.redirectUrl),
+            // Omit return_url for multisig co-signing: a redirect after the first
+            // signature navigates away and breaks sequential EscrowCreate/EscrowFinish flows.
+            ...(!isMultisigCoSign && { return_url: getReturnUrl(options.redirectUrl) }),
           },
         };
 
