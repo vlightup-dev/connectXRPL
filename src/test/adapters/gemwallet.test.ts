@@ -2,20 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createGemWalletAdapter } from "@gemwallet/index";
 import { TEST_XRPL_ADDRESS } from "../fixtures/xrpl";
 
-const { getAddress, getNetwork, getPublicKey, isInstalled, signTransaction, submitTransaction } =
-  vi.hoisted(() => ({
+const { getAddress, getNetwork, isInstalled, signTransaction, submitTransaction } = vi.hoisted(
+  () => ({
     getAddress: vi.fn(),
     getNetwork: vi.fn(),
-    getPublicKey: vi.fn(),
     isInstalled: vi.fn(),
     signTransaction: vi.fn(),
     submitTransaction: vi.fn(),
-  }));
+  }),
+);
 
 vi.mock("@gemwallet/api", () => ({
   getAddress,
   getNetwork,
-  getPublicKey,
   isInstalled,
   signTransaction,
   submitTransaction,
@@ -100,34 +99,21 @@ describe("GemWallet adapter", () => {
     });
   });
 
-  it("signs a transaction — fetches public key first, then opens the signing popup", async () => {
-    getPublicKey.mockResolvedValue({
-      result: { publicKey: "PUBKEY_HEX", address: TEST_XRPL_ADDRESS },
-    });
-    signTransaction.mockResolvedValue({ result: { signature: "SIG_HEX" } });
+  it("signs a transaction and returns the signed blob from GemWallet", async () => {
+    // GemWallet's signTransaction returns the fully signed tx blob (not raw bytes).
+    // The adapter must pass it through as txBlob so external-wallet-signing can
+    // decode it — for multisig, the blob already contains the correct Signers entry.
+    signTransaction.mockResolvedValue({ result: { signature: "SIGNED_TX_BLOB_HEX" } });
 
     const transaction = { TransactionType: "Payment", Account: TEST_XRPL_ADDRESS };
 
     await expect(createGemWalletAdapter().signTransaction?.({ transaction })).resolves.toEqual({
-      signedTransaction: {
-        address: TEST_XRPL_ADDRESS,
-        publicKey: "PUBKEY_HEX",
-        signature: "SIG_HEX",
-        transaction,
-      },
+      signedTransaction: { txBlob: "SIGNED_TX_BLOB_HEX" },
     });
-
-    // getPublicKey must be called BEFORE signTransaction so the "Share public key" popup
-    // resolves before the transaction popup opens — prevents Promise.all hang.
-    const getPublicKeyOrder = getPublicKey.mock.invocationCallOrder[0];
-    const signTransactionOrder = signTransaction.mock.invocationCallOrder[0];
-    expect(getPublicKeyOrder).toBeLessThan(signTransactionOrder);
+    expect(signTransaction).toHaveBeenCalledWith({ transaction });
   });
 
   it("wraps signing failures with a signing_failed error code", async () => {
-    getPublicKey.mockResolvedValue({
-      result: { publicKey: "PUBKEY_HEX", address: TEST_XRPL_ADDRESS },
-    });
     signTransaction.mockRejectedValue(new Error("user rejected"));
 
     await expect(

@@ -1,7 +1,6 @@
 import {
   getAddress,
   getNetwork,
-  getPublicKey,
   isInstalled,
   signTransaction,
   submitTransaction,
@@ -66,33 +65,20 @@ export function createGemWalletAdapter(): WalletAdapter {
     },
     async signTransaction({ transaction }) {
       try {
-        // Fetch the public key first (may show a one-time "Share public key" popup),
-        // then sign the transaction (shows the signing popup).
-        // Using Promise.all for both concurrent causes GemWallet to queue them — the user
-        // sees the sign popup, approves it, and then a second "Share public key" popup
-        // silently waits behind the scenes, leaving the UI hung until it is resolved.
-        const publicKeyResponse = await getPublicKey();
-        const publicKey = publicKeyResponse.result?.publicKey;
-        const address = publicKeyResponse.result?.address;
-
-        if (!publicKey || !address) {
-          throw new Error("GemWallet did not return a public key.");
-        }
-
+        // GemWallet's signTransaction returns the fully signed transaction blob
+        // (equivalent to xrpl.js wallet.sign().tx_blob), not raw signature bytes.
+        // For multisig (SigningPubKey: ""), the blob contains a Signers array with
+        // the signer's Account, SigningPubKey, and TxnSignature already assembled.
+        // We return it as txBlob so external-wallet-signing decodes it correctly.
         const signResponse = await signTransaction({ transaction });
-        const signature = signResponse.result?.signature;
+        const txBlob = signResponse.result?.signature;
 
-        if (!signature) {
-          throw new Error("GemWallet did not return a signature.");
+        if (!txBlob) {
+          throw new Error("GemWallet did not return a signed transaction.");
         }
 
         return {
-          signedTransaction: {
-            address,
-            publicKey,
-            signature,
-            transaction,
-          },
+          signedTransaction: { txBlob },
         };
       } catch (error) {
         if (typeof error === "object" && error !== null && "code" in error) {
