@@ -2,17 +2,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createGemWalletAdapter } from "@gemwallet/index";
 import { TEST_XRPL_ADDRESS } from "../fixtures/xrpl";
 
-const { getAddress, getNetwork, isInstalled, submitTransaction } = vi.hoisted(() => ({
-  getAddress: vi.fn(),
-  getNetwork: vi.fn(),
-  isInstalled: vi.fn(),
-  submitTransaction: vi.fn(),
-}));
+const { getAddress, getNetwork, isInstalled, signTransaction, submitTransaction } = vi.hoisted(
+  () => ({
+    getAddress: vi.fn(),
+    getNetwork: vi.fn(),
+    isInstalled: vi.fn(),
+    signTransaction: vi.fn(),
+    submitTransaction: vi.fn(),
+  }),
+);
 
 vi.mock("@gemwallet/api", () => ({
   getAddress,
   getNetwork,
   isInstalled,
+  signTransaction,
   submitTransaction,
 }));
 
@@ -93,6 +97,28 @@ describe("GemWallet adapter", () => {
       code: "configuration_error",
       message: "GemWallet is on mainnet. Switch GemWallet to XRPL Testnet and retry.",
     });
+  });
+
+  it("signs a transaction and returns the signed blob from GemWallet", async () => {
+    // GemWallet's signTransaction returns the fully signed tx blob (not raw bytes).
+    // The adapter must pass it through as txBlob so external-wallet-signing can
+    // decode it — for multisig, the blob already contains the correct Signers entry.
+    signTransaction.mockResolvedValue({ result: { signature: "SIGNED_TX_BLOB_HEX" } });
+
+    const transaction = { TransactionType: "Payment", Account: TEST_XRPL_ADDRESS };
+
+    await expect(createGemWalletAdapter().signTransaction?.({ transaction })).resolves.toEqual({
+      signedTransaction: { txBlob: "SIGNED_TX_BLOB_HEX" },
+    });
+    expect(signTransaction).toHaveBeenCalledWith({ transaction });
+  });
+
+  it("wraps signing failures with a signing_failed error code", async () => {
+    signTransaction.mockRejectedValue(new Error("user rejected"));
+
+    await expect(
+      createGemWalletAdapter().signTransaction?.({ transaction: {} }),
+    ).rejects.toMatchObject({ code: "signing_failed" });
   });
 
   it("normalizes connect failures", async () => {

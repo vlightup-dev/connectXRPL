@@ -1,7 +1,6 @@
 import {
   getAddress,
   getNetwork,
-  getPublicKey,
   isInstalled,
   signTransaction,
   submitTransaction,
@@ -66,28 +65,25 @@ export function createGemWalletAdapter(): WalletAdapter {
     },
     async signTransaction({ transaction }) {
       try {
-        const [signResponse, publicKeyResponse] = await Promise.all([
-          signTransaction({ transaction }),
-          getPublicKey(),
-        ]);
+        // GemWallet's signTransaction returns the fully signed transaction blob
+        // (equivalent to xrpl.js wallet.sign().tx_blob), not raw signature bytes.
+        // For multisig (SigningPubKey: ""), the blob contains a Signers array with
+        // the signer's Account, SigningPubKey, and TxnSignature already assembled.
+        // We return it as txBlob so external-wallet-signing decodes it correctly.
+        const signResponse = await signTransaction({ transaction });
+        const txBlob = signResponse.result?.signature;
 
-        const signature = signResponse.result?.signature;
-        const publicKey = publicKeyResponse.result?.publicKey;
-        const address = publicKeyResponse.result?.address;
-
-        if (!signature || !publicKey || !address) {
-          throw new Error("GemWallet did not return a complete signature response.");
+        if (!txBlob) {
+          throw new Error("GemWallet did not return a signed transaction.");
         }
 
         return {
-          signedTransaction: {
-            address,
-            publicKey,
-            signature,
-            transaction,
-          },
+          signedTransaction: { txBlob },
         };
       } catch (error) {
+        if (typeof error === "object" && error !== null && "code" in error) {
+          throw error;
+        }
         throw createWalletConnectError(
           "signing_failed",
           "GemWallet transaction signing failed.",

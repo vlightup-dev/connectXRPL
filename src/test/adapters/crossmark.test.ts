@@ -166,38 +166,37 @@ describe("Crossmark adapter", () => {
     ).rejects.toMatchObject({ code: "signing_failed" });
   });
 
-  it("throws signing_failed before opening the popup when the transaction is a multisig co-sign for a different account", async () => {
-    // Crossmark only accepts transactions where Account matches the connected wallet.
-    // For multisig co-signing, Account is the org/escrow account, not the signer's address.
-    isConnected.mockReturnValue(true);
-    getAddress.mockReturnValue(TEST_XRPL_ADDRESS);
+  it("co-signs a multisig transaction where Account is a different org address", async () => {
+    // Crossmark supports XRPL multisig co-signing: Account is the org/escrow account
+    // (not the signer's own address) and SigningPubKey is "".  Crossmark signs with
+    // MULTISIG_PREFIX and returns a txBlob with a Signers array.
+    signAndWait.mockResolvedValue({
+      response: { data: { txBlob: "MULTISIG_COSIGN_BLOB" } },
+    });
 
     const multisigTx = {
       TransactionType: "EscrowCreate",
-      Account: "rDIFFERENT_ORG_ACCOUNT_ADDRESS",
+      Account: "rORG_MULTISIG_ACCOUNT_ADDRESS",
       SigningPubKey: "",
     };
 
     await expect(
       createCrossmarkAdapter().signTransaction?.({ transaction: multisigTx }),
-    ).rejects.toMatchObject({
-      code: "signing_failed",
-      message: expect.stringContaining("multisig co-signer"),
+    ).resolves.toEqual({
+      signedTransaction: { txBlob: "MULTISIG_COSIGN_BLOB" },
     });
 
-    // signAndWait must NOT be called — the error is detected before the popup opens.
-    expect(signAndWait).not.toHaveBeenCalled();
+    // signAndWait must be called with the transaction as-is.
+    expect(signAndWait).toHaveBeenCalledWith(multisigTx);
   });
 
-  it("allows signing a multisig transaction when Account matches the connected wallet", async () => {
+  it("co-signs a multisig transaction when Account matches the connected wallet", async () => {
     isConnected.mockReturnValue(true);
     getAddress.mockReturnValue(TEST_XRPL_ADDRESS);
     signAndWait.mockResolvedValue({
       response: { data: { txBlob: "MULTISIG_BLOB" } },
     });
 
-    // Account === connected address: this is the account owner doing a multisig send,
-    // which Crossmark supports fine.
     const transaction = {
       TransactionType: "Payment",
       Account: TEST_XRPL_ADDRESS,
